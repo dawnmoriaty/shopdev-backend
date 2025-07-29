@@ -17,14 +17,11 @@ import com.example.shopdev.security.jwt.JwtProvider;
 import com.example.shopdev.security.principle.UserPrincipal;
 import com.example.shopdev.service.IAuthService;
 import com.example.shopdev.service.IRefreshTokenService;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -46,12 +43,11 @@ public class AuthService implements IAuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtProvider jwtProvider;
     private final IRefreshTokenService refreshTokenService;
-    private final IRefreshTokenRepository refreshTokenRepository;
 
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByUsername(request.getEmail())) {
+        if (userRepository.existsByUsername(request.getUsername())) {
             throw new RuntimeException("Username đã được sử dụng");
         }
 
@@ -137,22 +133,12 @@ public class AuthService implements IAuthService {
 
     @Override
     public boolean logout(String token)  {
-        log.debug("Logout attempt with token: {}", token);
-
         if (token == null || token.isBlank()) {
-            log.warn("Logout failed: Token is null or blank");
             return false;
         }
 
-        boolean result = refreshTokenService.deleteByToken(token);
+        return refreshTokenService.deleteByToken(token);
 
-        if (result) {
-            log.info("Logout successful: Token deleted successfully");
-        } else {
-            log.warn("Logout failed: Token not found or could not be deleted");
-        }
-
-        return result;
     }
 
     private AuthResponse buildAuthResponse(UserPrincipal userPrincipal, String accessToken, String refreshToken) {
