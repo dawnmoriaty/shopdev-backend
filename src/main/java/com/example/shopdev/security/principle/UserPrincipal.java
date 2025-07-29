@@ -1,11 +1,12 @@
 package com.example.shopdev.security.principle;
 
+import com.example.shopdev.model.User;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
-import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
@@ -19,6 +20,18 @@ public class UserPrincipal implements UserDetails {
     private Boolean status;
     private Collection<? extends GrantedAuthority> authorities;
 
+    public static UserPrincipal createUser(User user){
+        return UserPrincipal.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .password(user.getPassword())
+                .email(user.getEmail())
+                .status(user.getStatus())
+                .authorities(user.getRoles().stream()
+                        .map(role -> new SimpleGrantedAuthority(role.getRoleName().name()))
+                        .toList())
+                .build();
+    }
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return this.authorities;
