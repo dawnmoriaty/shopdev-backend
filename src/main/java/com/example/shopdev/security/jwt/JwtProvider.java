@@ -1,71 +1,97 @@
 package com.example.shopdev.security.jwt;
 
 import com.example.shopdev.security.principle.UserPrincipal;
+import com.example.shopdev.service.IJwtProvider;
 import io.jsonwebtoken.*;
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.security.SecurityException;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.function.Function;
 
 @RequiredArgsConstructor
 @Component
 @Slf4j
-public class JwtProvider {
+public class JwtProvider implements IJwtProvider {
     @Value("${secret_key}")
     private String jwtSecret;
-    @Value("${expired}")
+    @Value("${jwt.access-token.expiration}")
     private int jwtExpirationMs;
+    @Value("${jwt.refresh-token.expiration}")
+    private int jwtRefreshExpirationMs;
 
-    private SecretKey getSigningKey() {
-        return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+    private SecretKey key;
+
+    @PostConstruct
+    public void init() {
+        byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
+        this.key = Keys.hmacShaKeyFor(keyBytes);
     }
-    public Claims getClaimsFromToken(String token) {
-        return Jwts.parser()
-                .verifyWith(getSigningKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+
+    @Override
+    public String generateAccessToken(UserPrincipal userPrincipal) {
+        return buildToken(userPrincipal, jwtExpirationMs);
     }
 
-    public String generateJwtToken(Authentication authentication) {
-        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+    @Override
+    public String generateRefreshToken(UserPrincipal userPrincipal) {
+        return buildToken(userPrincipal, jwtRefreshExpirationMs);
+    }
 
+    private String buildToken(UserPrincipal userPrincipal, long expiration) {
         return Jwts.builder()
                 .subject(userPrincipal.getUsername())
-                .claim("id", userPrincipal.getId())
+                .claim("userId", userPrincipal.getId())
                 .claim("email", userPrincipal.getEmail())
+                .claim("roles", userPrincipal.getAuthorities())
                 .issuedAt(new Date())
-                .expiration(new Date((new Date()).getTime() + jwtExpirationMs))
-                .signWith(getSigningKey(), Jwts.SIG.HS512)
+                .expiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(key)
                 .compact();
     }
 
-    public String getUsernameFromJwtToken(String token) {
-        return getClaimsFromToken(token).getSubject();
+    @Override
+    public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
     }
 
-    public boolean isValidToken(String token) {
+    @Override
+    public boolean validateToken(String token) {
         try {
-            getClaimsFromToken(token);
+            Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
             return true;
-        } catch (UnsupportedJwtException e) {
-            log.error("Unsupported JWT token {}", e.getMessage());
-        } catch (ExpiredJwtException e) {
-            log.error("Expired JWT token {}", e.getMessage());
-        } catch (MalformedJwtException e) {
-            log.error("Malformed JWT token {}", e.getMessage());
-        } catch (IllegalArgumentException e) {
-            log.error("Illegal JWT token {}", e.getMessage());
         } catch (JwtException e) {
-            log.error("Invalid JWT token {}", e.getMessage());
+            log.error("JWT token validation failed: {}", e.getMessage());
+            return false;
         }
-        return false;
     }
 
+    @Override
+    public long getAccessTokenExpirationTime() {
+        return jwtExpirationMs;
+    }
+
+    private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
+    }
+
+    private Claims extractAllClaims(String token) {
+        try {
+            return Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+        } catch (ExpiredJwtException e) {
+            return e.getClaims();
+        }
+    }
 }

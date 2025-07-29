@@ -2,90 +2,92 @@ package com.example.shopdev.controller;
 
 import com.example.shopdev.dto.req.LoginRequest;
 import com.example.shopdev.dto.req.RegisterRequest;
+import com.example.shopdev.dto.req.TokenRefreshRequest;
 import com.example.shopdev.dto.res.ApiResponse;
-import com.example.shopdev.dto.res.JwtResponse;
-import com.example.shopdev.dto.res.MessageResponse;
+import com.example.shopdev.dto.res.AuthResponse;
+import com.example.shopdev.exception.TokenRefreshException;
 import com.example.shopdev.service.IAuthService;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
-@Slf4j
 public class AuthController {
     private final IAuthService authService;
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<MessageResponse>> register(@Valid @RequestBody RegisterRequest registerRequest) {
-        try {
-            authService.register(registerRequest);
-            return ResponseEntity.ok(
-                ApiResponse.<MessageResponse>builder()
-                    .success(true)
-                    .message("User registered successfully!")
-                    .data(new MessageResponse("User registered successfully!"))
-                    .build()
-            );
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(
-                ApiResponse.<MessageResponse>builder()
-                    .success(false)
-                    .message(e.getMessage())
-                    .data(new MessageResponse(e.getMessage()))
-                    .build()
-            );
-        }
+    public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
+        AuthResponse authResponse = authService.register(request);
+
+        ApiResponse<AuthResponse> response = ApiResponse.<AuthResponse>builder()
+                .success(true)
+                .status(HttpStatus.CREATED.value())
+                .message("Đăng ký tài khoản thành công")
+                .data(authResponse)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<JwtResponse>> login(@Valid @RequestBody LoginRequest loginRequest) {
-        try {
-            JwtResponse jwtResponse = authService.login(loginRequest);
-            return ResponseEntity.ok(
-                ApiResponse.<JwtResponse>builder()
-                    .success(true)
-                    .message("Login successful!")
-                    .data(jwtResponse)
-                    .build()
-            );
-        } catch (Exception e) {
-            log.error("Login failed for user: {}, Error: {}", loginRequest.getUsername(), e.getMessage(), e);
-            return ResponseEntity.badRequest().body(
-                ApiResponse.<JwtResponse>builder()
-                    .success(false)
-                    .message("Invalid username or password!")
-                    .data(null)
-                    .build()
-            );
-        }
+    public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
+        AuthResponse authResponse = authService.login(request);
+
+        ApiResponse<AuthResponse> response = ApiResponse.<AuthResponse>builder()
+                .success(true)
+                .status(HttpStatus.OK.value())
+                .message("Đăng nhập thành công")
+                .data(authResponse)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/refresh-token")
+    public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(@Valid @RequestBody TokenRefreshRequest request) throws TokenRefreshException {
+        AuthResponse authResponse = authService.refreshToken(request);
+
+        ApiResponse<AuthResponse> response = ApiResponse.<AuthResponse>builder()
+                .success(true)
+                .status(HttpStatus.OK.value())
+                .message("Làm mới token thành công")
+                .data(authResponse)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<MessageResponse>> logout(HttpServletRequest request) {
-        try {
-            authService.logout(request);
-            return ResponseEntity.ok(
-                ApiResponse.<MessageResponse>builder()
-                    .success(true)
-                    .message("Logout successful!")
-                    .data(new MessageResponse("User logged out successfully!"))
-                    .build()
-            );
-        } catch (Exception e) {
-            log.error("Logout failed: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(
-                ApiResponse.<MessageResponse>builder()
+    public ResponseEntity<ApiResponse<Void>> logout(@Valid @RequestBody TokenRefreshRequest request) {
+        boolean success = authService.logout(request.getRefreshToken());
+
+        if (!success) {
+            ApiResponse<Void> response = ApiResponse.<Void>builder()
                     .success(false)
-                    .message("Logout failed!")
-                    .data(new MessageResponse(e.getMessage()))
-                    .build()
-            );
+                    .status(HttpStatus.BAD_REQUEST.value())
+                    .message("Đăng xuất thất bại: Token không hợp lệ")
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+            return ResponseEntity.badRequest().body(response);
         }
+
+        ApiResponse<Void> response = ApiResponse.<Void>builder()
+                .success(true)
+                .status(HttpStatus.OK.value())
+                .message("Đăng xuất thành công")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 }

@@ -3,26 +3,36 @@ package com.example.shopdev.service.impl;
 import com.example.shopdev.constants.RoleName;
 import com.example.shopdev.dto.req.LoginRequest;
 import com.example.shopdev.dto.req.RegisterRequest;
-import com.example.shopdev.dto.res.JwtResponse;
+import com.example.shopdev.dto.req.TokenRefreshRequest;
+import com.example.shopdev.dto.res.AuthResponse;
+import com.example.shopdev.exception.ResourceNotFoundException;
+import com.example.shopdev.exception.TokenRefreshException;
+import com.example.shopdev.model.RefreshToken;
 import com.example.shopdev.model.Role;
 import com.example.shopdev.model.User;
+import com.example.shopdev.repository.IRefreshTokenRepository;
 import com.example.shopdev.repository.IRoleRepository;
 import com.example.shopdev.repository.IUserRepository;
 import com.example.shopdev.security.jwt.JwtProvider;
 import com.example.shopdev.security.principle.UserPrincipal;
 import com.example.shopdev.service.IAuthService;
+import com.example.shopdev.service.IRefreshTokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -30,101 +40,136 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Service
 public class AuthService implements IAuthService {
-    private final AuthenticationManager authenticationManager;
     private final IUserRepository userRepository;
     private final IRoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
     private final JwtProvider jwtProvider;
+    private final IRefreshTokenService refreshTokenService;
+    private final IRefreshTokenRepository refreshTokenRepository;
+
     @Override
-    public void register(RegisterRequest registerRequest) {
-        if (userRepository.existsByUsername(registerRequest.getUsername())) {
-            throw new IllegalArgumentException("Error: Username is already taken!");
+    @Transactional
+    public AuthResponse register(RegisterRequest request) {
+        if (userRepository.existsByUsername(request.getEmail())) {
+            throw new RuntimeException("Username đã được sử dụng");
         }
 
-        if (userRepository.existsByEmail(registerRequest.getEmail())) {
-            throw new IllegalArgumentException("Error: Email is already in use!");
+        // Kiểm tra email đã tồn tại chưa
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new RuntimeException("Email đã được sử dụng");
         }
 
-        User user = User.builder()
-                .username(registerRequest.getUsername())
-                .email(registerRequest.getEmail())
-                .password(passwordEncoder.encode(registerRequest.getPassword()))
-                .status(true)
-                .build();
+        // Tạo user mới
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setEmail(request.getEmail());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setStatus(true);
 
+        // Thiết lập role
         Set<Role> roles = new HashSet<>();
-
-        // Tìm hoặc tạo ROLE_USER nếu chưa có
-        Role userRole = roleRepository.findRoleByRoleName(RoleName.ROLE_USER)
-                .orElseGet(() -> {
-                    // Nếu chưa có thì tạo mới
-                    Role newRole = new Role();
-                    newRole.setRoleName(RoleName.ROLE_USER);
-                    return roleRepository.save(newRole);
-                });
-
+        Role userRole = roleRepository.findRoleByRoleName(request.getRole())
+                .orElseThrow(() -> new ResourceNotFoundException("Role không tồn tại"));
         roles.add(userRole);
         user.setRoles(roles);
-        userRepository.save(user);
+
+        // Lưu user
+        User savedUser = userRepository.save(user);
+
+        // Tạo UserPrincipal
+        UserPrincipal userPrincipal = UserPrincipal.createUser(savedUser);
+
+        // Tạo token
+        String accessToken = jwtProvider.generateAccessToken(userPrincipal);
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(savedUser);
+
+        // Tạo response
+        return buildAuthResponse(userPrincipal, accessToken, refreshToken.getToken());
     }
 
     @Override
-    public JwtResponse login(LoginRequest loginRequest) {
-        // Authenticate the user
+    public AuthResponse login(LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        loginRequest.getUsername(),
-                        loginRequest.getPassword()
+                        request.getUsername(),
+                        request.getPassword()
                 )
         );
 
-        // Set authentication in security context
         SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        // Generate JWT token
-        String jwt = jwtProvider.generateJwtToken(authentication);
-
-        // Get user principal
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
 
-        // Extract roles
-        Set<String> roles = userPrincipal.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.toSet());
+        String accessToken = jwtProvider.generateAccessToken(userPrincipal);
 
-        // Return JWT response
-        return new JwtResponse(
-                jwt,
-                userPrincipal.getUsername(),
-                userPrincipal.getEmail(),
-                userPrincipal.getStatus(),
-                roles
-        );
+        User user = userRepository.findById(userPrincipal.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+
+        return buildAuthResponse(userPrincipal, accessToken, refreshToken.getToken());
     }
 
     @Override
-    public void logout(HttpServletRequest request) {
-        // Extract token from request
-        String token = extractTokenFromRequest(request);
-        
-        if (token == null) {
-            throw new RuntimeException("No token provided");
+    public AuthResponse refreshToken(TokenRefreshRequest request) throws TokenRefreshException {
+        String requestRefreshToken = request.getRefreshToken();
+
+        // Tìm token trong database
+        Optional<RefreshToken> tokenOptional = refreshTokenService.findByToken(requestRefreshToken);
+        if (tokenOptional.isEmpty()) {
+            throw new TokenRefreshException("Refresh token không tồn tại");
         }
 
-        // Validate the token first
-        if (!jwtProvider.isValidToken(token)) {
-            throw new RuntimeException("Invalid or expired token");
-        }
+        // Kiểm tra token có hợp lệ không
+        RefreshToken refreshToken = tokenOptional.get();
+        refreshToken = refreshTokenService.verifyExpiration(refreshToken);
 
-        // Clear the security context
-        SecurityContextHolder.clearContext();
+        // Lấy thông tin user
+        User user = refreshToken.getUser();
+        UserPrincipal userPrincipal = UserPrincipal.createUser(user);
+
+        // Tạo access token mới
+        String accessToken = jwtProvider.generateAccessToken(userPrincipal);
+
+        // Trả về response
+        return buildAuthResponse(userPrincipal, accessToken, requestRefreshToken);
     }
 
-    private String extractTokenFromRequest(HttpServletRequest request) {
-        String bearerToken = request.getHeader("Authorization");
-        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
+    @Override
+    public boolean logout(String token)  {
+        log.debug("Logout attempt with token: {}", token);
+
+        if (token == null || token.isBlank()) {
+            log.warn("Logout failed: Token is null or blank");
+            return false;
         }
-        return null;
+
+        boolean result = refreshTokenService.deleteByToken(token);
+
+        if (result) {
+            log.info("Logout successful: Token deleted successfully");
+        } else {
+            log.warn("Logout failed: Token not found or could not be deleted");
+        }
+
+        return result;
+    }
+
+    private AuthResponse buildAuthResponse(UserPrincipal userPrincipal, String accessToken, String refreshToken) {
+        // Lấy các role từ authorities
+        Set<String> roles = userPrincipal.getAuthorities().stream()
+                .map(authority -> ((SimpleGrantedAuthority) authority).getAuthority())
+                .collect(Collectors.toSet());
+
+        return AuthResponse.builder()
+                .id(userPrincipal.getId())
+                .username(userPrincipal.getUsername())
+                .email(userPrincipal.getEmail())
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .tokenType("Bearer")
+                .expiresIn(jwtProvider.getAccessTokenExpirationTime())
+                .role(roles)
+                .build();
     }
 }
