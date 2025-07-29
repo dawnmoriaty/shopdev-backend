@@ -8,9 +8,10 @@ import com.example.shopdev.model.Role;
 import com.example.shopdev.model.User;
 import com.example.shopdev.repository.IRoleRepository;
 import com.example.shopdev.repository.IUserRepository;
-import com.example.shopdev.security.jwt.JwtUtils;
+import com.example.shopdev.security.jwt.JwtProvider;
 import com.example.shopdev.security.principle.UserPrincipal;
 import com.example.shopdev.service.IAuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -21,7 +22,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -34,7 +34,7 @@ public class AuthService implements IAuthService {
     private final IUserRepository userRepository;
     private final IRoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtUtils jwtUtils;
+    private final JwtProvider jwtProvider;
     @Override
     public void register(RegisterRequest registerRequest) {
         if (userRepository.existsByUsername(registerRequest.getUsername())) {
@@ -82,7 +82,7 @@ public class AuthService implements IAuthService {
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         // Generate JWT token
-        String jwt = jwtUtils.generateJwtToken(authentication);
+        String jwt = jwtProvider.generateJwtToken(authentication);
 
         // Get user principal
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
@@ -103,13 +103,28 @@ public class AuthService implements IAuthService {
     }
 
     @Override
-    public void logout(String token) {
+    public void logout(HttpServletRequest request) {
+        // Extract token from request
+        String token = extractTokenFromRequest(request);
+        
+        if (token == null) {
+            throw new RuntimeException("No token provided");
+        }
+
         // Validate the token first
-        if (!jwtUtils.validationToken(token)) {
+        if (!jwtProvider.isValidToken(token)) {
             throw new RuntimeException("Invalid or expired token");
         }
 
         // Clear the security context
         SecurityContextHolder.clearContext();
+    }
+
+    private String extractTokenFromRequest(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
     }
 }

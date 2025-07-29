@@ -69,20 +69,7 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<MessageResponse>> logout(HttpServletRequest request) {
         try {
-            // Extract token from request
-            String token = extractTokenFromRequest(request);
-
-            if (token == null) {
-                return ResponseEntity.badRequest().body(
-                    ApiResponse.<MessageResponse>builder()
-                        .success(false)
-                        .message("No token provided!")
-                        .data(new MessageResponse("Authorization token is required for logout"))
-                        .build()
-                );
-            }
-
-            authService.logout(token);
+            authService.logout(request);
             return ResponseEntity.ok(
                 ApiResponse.<MessageResponse>builder()
                     .success(true)
@@ -96,17 +83,9 @@ public class AuthController {
                 ApiResponse.<MessageResponse>builder()
                     .success(false)
                     .message("Logout failed!")
-                    .data(new MessageResponse("Invalid or expired token"))
+                    .data(new MessageResponse(e.getMessage()))
                     .build()
             );
         }
-    }
-
-    private String extractTokenFromRequest(HttpServletRequest request) {
-        String bearerToken = request.getHeader("Authorization");
-        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
-        }
-        return null;
     }
 }
