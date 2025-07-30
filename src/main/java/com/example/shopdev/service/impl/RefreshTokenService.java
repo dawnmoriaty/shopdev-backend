@@ -6,7 +6,6 @@ import com.example.shopdev.model.User;
 import com.example.shopdev.repository.IRefreshTokenRepository;
 import com.example.shopdev.service.IRefreshTokenService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,7 +16,6 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class RefreshTokenService implements IRefreshTokenService {
     private final IRefreshTokenRepository refreshTokenRepository;
 
@@ -66,20 +64,13 @@ public class RefreshTokenService implements IRefreshTokenService {
     @Override
     @Transactional
     public boolean deleteByToken(String token) {
-        log.debug("Attempting to delete refresh token: {}", token);
-
         Optional<RefreshToken> tokenOptional = refreshTokenRepository.findByToken(token);
 
         if (tokenOptional.isEmpty()) {
-            log.warn("Refresh token not found in database: {}", token);
             return false; // Token không tồn tại
         }
 
-        RefreshToken refreshToken = tokenOptional.get();
-        log.debug("Found refresh token for user: {}", refreshToken.getUser().getUsername());
-
-        refreshTokenRepository.delete(refreshToken);
-        log.info("Successfully deleted refresh token for user: {}", refreshToken.getUser().getUsername());
+        refreshTokenRepository.delete(tokenOptional.get());
         return true;
     }
 }

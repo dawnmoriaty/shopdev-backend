@@ -1,6 +1,4 @@
 package com.example.shopdev.service.impl;
-
-import com.example.shopdev.constants.RoleName;
 import com.example.shopdev.dto.req.LoginRequest;
 import com.example.shopdev.dto.req.RegisterRequest;
 import com.example.shopdev.dto.req.TokenRefreshRequest;
@@ -10,7 +8,6 @@ import com.example.shopdev.exception.TokenRefreshException;
 import com.example.shopdev.model.RefreshToken;
 import com.example.shopdev.model.Role;
 import com.example.shopdev.model.User;
-import com.example.shopdev.repository.IRefreshTokenRepository;
 import com.example.shopdev.repository.IRoleRepository;
 import com.example.shopdev.repository.IUserRepository;
 import com.example.shopdev.security.jwt.JwtProvider;
@@ -28,6 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -61,6 +59,7 @@ public class AuthService implements IAuthService {
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setCreatedAt(LocalDateTime.now());
         user.setStatus(true);
 
         // Thiết lập role
@@ -142,7 +141,6 @@ public class AuthService implements IAuthService {
     }
 
     private AuthResponse buildAuthResponse(UserPrincipal userPrincipal, String accessToken, String refreshToken) {
-        // Lấy các role từ authorities
         Set<String> roles = userPrincipal.getAuthorities().stream()
                 .map(authority -> ((SimpleGrantedAuthority) authority).getAuthority())
                 .collect(Collectors.toSet());
