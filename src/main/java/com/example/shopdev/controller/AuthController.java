@@ -67,8 +67,23 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(@Valid @RequestBody TokenRefreshRequest request) {
-        boolean success = authService.logout(request.getRefreshToken());
+    public ResponseEntity<ApiResponse<Void>> logout(@RequestHeader("Authorization") String authorizationHeader) {
+        // Kiểm tra header có hợp lệ không
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+            ApiResponse<Void> response = ApiResponse.<Void>builder()
+                    .success(false)
+                    .status(HttpStatus.BAD_REQUEST.value())
+                    .message("Đăng xuất thất bại: Authorization header không hợp lệ")
+                    .timestamp(LocalDateTime.now())
+                    .build();
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        // Lấy accessToken từ header
+        String accessToken = authorizationHeader.substring(7);
+
+        // Gọi service để xử lý logout
+        boolean success = authService.logout(accessToken);
 
         if (!success) {
             ApiResponse<Void> response = ApiResponse.<Void>builder()
@@ -77,7 +92,6 @@ public class AuthController {
                     .message("Đăng xuất thất bại: Token không hợp lệ")
                     .timestamp(LocalDateTime.now())
                     .build();
-
             return ResponseEntity.badRequest().body(response);
         }
 

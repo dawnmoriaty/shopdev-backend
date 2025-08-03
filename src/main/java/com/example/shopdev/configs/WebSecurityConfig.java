@@ -3,7 +3,6 @@ package com.example.shopdev.configs;
 import com.example.shopdev.security.jwt.AccessDenied;
 import com.example.shopdev.security.jwt.AuthTokenFilter;
 import com.example.shopdev.security.jwt.JwtEntryPoint;
-import com.example.shopdev.security.principle.UserDetailServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -50,8 +49,9 @@ public class WebSecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
-                        .requestMatchers("/api/v1/products/**",
-                                "api/v1/categories/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/products/**","api/v1/images/**",
+                                "api/v1/categories/**").permitAll()
+                        .requestMatchers("/api/v1/cart/**").hasAnyAuthority("ROLE_USER", "ROLE_ADMIN")
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session

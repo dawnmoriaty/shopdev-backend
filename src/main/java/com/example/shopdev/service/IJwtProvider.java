@@ -1,9 +1,8 @@
 package com.example.shopdev.service;
 
 import com.example.shopdev.security.principle.UserPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
+import io.jsonwebtoken.Claims;
 
-import java.util.Map;
 
 public interface IJwtProvider {
     String generateAccessToken(UserPrincipal userPrincipal);
@@ -11,4 +10,5 @@ public interface IJwtProvider {
     String extractUsername(String token);
     boolean validateToken(String token);
     long getAccessTokenExpirationTime();
+    Claims extractAllClaims(String token);
 }

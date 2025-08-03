@@ -19,6 +19,8 @@ import java.util.function.Function;
 @Component
 @Slf4j
 public class JwtProvider implements IJwtProvider {
+
+
     @Value("${secret_key}")
     private String jwtSecret;
     @Value("${jwt.access-token.expiration}")
@@ -52,7 +54,7 @@ public class JwtProvider implements IJwtProvider {
                 .claim("roles", userPrincipal.getAuthorities())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(key)
+                .signWith(key, SignatureAlgorithm.HS512)
                 .compact();
     }
 
@@ -76,13 +78,12 @@ public class JwtProvider implements IJwtProvider {
     public long getAccessTokenExpirationTime() {
         return jwtExpirationMs;
     }
-
     private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
     }
-
-    private Claims extractAllClaims(String token) {
+    @Override
+    public Claims extractAllClaims(String token) {
         try {
             return Jwts.parser()
                     .verifyWith(key)
