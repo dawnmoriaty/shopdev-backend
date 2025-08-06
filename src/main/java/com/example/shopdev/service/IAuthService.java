@@ -11,5 +11,5 @@ public interface IAuthService {
     AuthResponse register(RegisterRequest request);
     AuthResponse login(LoginRequest request);
     AuthResponse refreshToken(TokenRefreshRequest request) throws TokenRefreshException;
-    boolean logout(String token) ;
+    void logout(String refreshToken);
 }

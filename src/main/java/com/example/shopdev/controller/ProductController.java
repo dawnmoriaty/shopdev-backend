@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -16,12 +17,12 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("api/v1/products")
-@CrossOrigin("*")
 public class ProductController {
     private final IProductService productService;
 
     // 1. API tạo sản phẩm mới
     @PostMapping
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(@Valid @RequestBody ProductRequest request) {
         ProductResponse data = productService.createProduct(request);
         ApiResponse<ProductResponse> response = ApiResponse.<ProductResponse>builder()
@@ -63,6 +64,7 @@ public class ProductController {
     }
 
     // 4. API cập nhật sản phẩm
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(@PathVariable("id") Long productId, @Valid @RequestBody ProductRequest request) {
         ProductResponse data = productService.updateProduct(productId, request);
@@ -78,6 +80,7 @@ public class ProductController {
 
     // 5. API xóa sản phẩm
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable("id") Long productId) {
         productService.deleteProduct(productId);
         ApiResponse<Void> response = ApiResponse.<Void>builder()

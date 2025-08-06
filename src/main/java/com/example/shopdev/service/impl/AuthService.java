@@ -131,31 +131,27 @@ public class AuthService implements IAuthService {
     }
 
     @Override
-    public boolean logout(String accessToken) {
+    public void logout(String refreshToken) {
         try {
-            // 1. Validate access token trước
-            if (!jwtProvider.validateToken(accessToken)) {
-                log.warn("Invalid access token during logout");
-                return false;
+            // Tìm refresh token trong database
+            Optional<RefreshToken> tokenOptional = refreshTokenService.findByToken(refreshToken);
+            
+            if (tokenOptional.isEmpty()) {
+                throw new RuntimeException("Refresh token không tồn tại");
             }
 
-            // 2. Lấy username từ access token
-            String username = jwtProvider.extractUsername(accessToken);
-
-            // 3. Tìm user và xóa refresh token của user đó
-            Optional<User> userOpt = Optional.ofNullable(userRepository.findByUsername(username));
-            if (userOpt.isEmpty()) {
-                return false;
+            // Xóa refresh token khỏi database
+            boolean deleted = refreshTokenService.deleteByToken(refreshToken);
+            
+            if (!deleted) {
+                throw new RuntimeException("Không thể xóa refresh token");
             }
-            // 4. Xóa tất cả refresh token của user này
-            refreshTokenService.deleteByUser(userOpt.get());
-            // 5. Optional: Add access token to blacklist nếu có
-            // blacklistService.addToBlacklist(accessToken);
-            return true;
+            
+            log.info("Logout successful for refresh token: {}", refreshToken.substring(0, 20) + "...");
 
         } catch (Exception e) {
             log.error("Logout failed: {}", e.getMessage());
-            return false;
+            throw new RuntimeException("Đăng xuất thất bại: " + e.getMessage());
         }
     }
 

@@ -6,6 +6,7 @@ import com.example.shopdev.model.User;
 import com.example.shopdev.repository.IRefreshTokenRepository;
 import com.example.shopdev.service.IRefreshTokenService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,7 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RefreshTokenService implements IRefreshTokenService {
@@ -67,10 +69,12 @@ public class RefreshTokenService implements IRefreshTokenService {
         Optional<RefreshToken> tokenOptional = refreshTokenRepository.findByToken(token);
 
         if (tokenOptional.isEmpty()) {
+            log.warn("Refresh token not found in database: {}", token);
             return false; // Token không tồn tại
         }
 
         refreshTokenRepository.delete(tokenOptional.get());
+        log.info("Refresh token deleted successfully");
         return true;
     }
 }
