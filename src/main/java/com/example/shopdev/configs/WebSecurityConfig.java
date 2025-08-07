@@ -52,6 +52,7 @@ public class WebSecurityConfig {
                         .requestMatchers("/api/v1/products/**","api/v1/images/**",
                                 "api/v1/categories/**").permitAll()
                         .requestMatchers("/api/v1/cart/**").hasAnyAuthority("ROLE_USER", "ROLE_ADMIN")
+                        .requestMatchers("api/v1/address/**").hasAnyAuthority("ROLE_USER")
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session

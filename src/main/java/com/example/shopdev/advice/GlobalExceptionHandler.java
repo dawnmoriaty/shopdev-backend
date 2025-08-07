@@ -1,8 +1,10 @@
 package com.example.shopdev.advice;
 
 import com.example.shopdev.dto.res.ApiResponse;
+import com.example.shopdev.exception.ForbiddenException;
 import com.example.shopdev.exception.ResourceNotFoundException;
 import com.example.shopdev.exception.TokenRefreshException;
+import com.example.shopdev.exception.UnauthorizedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -96,5 +98,17 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
     }
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnauthorizedException(ForbiddenException ex) {
+        ApiResponse<Void> response = ApiResponse.<Void>builder()
+                .success(false)
+                .status(HttpStatus.FORBIDDEN.value())
+                .message(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
 
 }
