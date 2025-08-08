@@ -46,12 +46,14 @@ public class WebSecurityConfig {
                         .requestMatchers(
                                 "/api/v1/auth/**",
                                 "/v3/api-docs/**",
+                                "/v3/api-docs.yaml",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html"
+                                "/swagger-ui.html",
+                                "/webjars/**"
                         ).permitAll()
                         .requestMatchers("/api/v1/products/**","api/v1/images/**",
                                 "api/v1/categories/**").permitAll()
-                        .requestMatchers("/api/v1/cart/**").hasAnyAuthority("ROLE_USER", "ROLE_ADMIN")
+                        .requestMatchers("/api/v1/cart/**","api/v1/account/**").hasAnyAuthority("ROLE_USER", "ROLE_ADMIN")
                         .requestMatchers("api/v1/address/**").hasAnyAuthority("ROLE_USER")
                         .anyRequest().authenticated()
                 )

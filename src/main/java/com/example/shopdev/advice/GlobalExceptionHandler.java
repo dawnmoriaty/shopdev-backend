@@ -4,7 +4,6 @@ import com.example.shopdev.dto.res.ApiResponse;
 import com.example.shopdev.exception.ForbiddenException;
 import com.example.shopdev.exception.ResourceNotFoundException;
 import com.example.shopdev.exception.TokenRefreshException;
-import com.example.shopdev.exception.UnauthorizedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
