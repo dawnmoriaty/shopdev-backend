@@ -1,10 +1,13 @@
 package com.example.shopdev.controller;
 
 import com.example.shopdev.dto.req.CartItemRequest;
+import com.example.shopdev.dto.req.CreateOrderRequest;
 import com.example.shopdev.dto.req.QuantityRequest;
 import com.example.shopdev.dto.res.ApiResponse;
 import com.example.shopdev.dto.res.CartItemResponse;
+import com.example.shopdev.dto.res.OrderResponse;
 import com.example.shopdev.service.ICartService;
+import com.example.shopdev.service.IOrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +21,7 @@ import java.util.List;
 @RequestMapping("/api/v1/cart")
 public class CartController {
     private final ICartService cartService;
+    private final IOrderService orderService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<CartItemResponse>>> getCart() {
@@ -94,14 +98,16 @@ public class CartController {
         return ResponseEntity.ok(response);
     }
 
+    // Đặt hàng từ giỏ
     @PostMapping("/checkout")
-    public ResponseEntity<ApiResponse<Void>> checkout() {
-        cartService.checkout();
+    public ResponseEntity<ApiResponse<OrderResponse>> checkout(@RequestBody CreateOrderRequest request) {
+        OrderResponse data = orderService.checkout(request);
 
-        ApiResponse<Void> response = ApiResponse.<Void>builder()
+        ApiResponse<OrderResponse> response = ApiResponse.<OrderResponse>builder()
                 .success(true)
                 .status(HttpStatus.OK.value())
-                .message("Thanh toán thành công")
+                .message("Đặt hàng thành công")
+                .data(data)
                 .timestamp(LocalDateTime.now())
                 .build();
 
